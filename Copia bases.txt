@@ -1,0 +1,21 @@
+%LET DIA = 12;
+%LET MES = 08;
+%LET ANO = 2013;
+
+data Nurnberg.TbUsuarioParada&ANO.&MES.&DIA.;
+set TbUsuarioParada;
+	format DtReferencia DDMMYY10.;
+	informat DtReferencia DDMMYY10.;
+	length DtReferencia 8.;
+
+	DtReferencia = mdy(&MES., &DIA., &ANO.);
+run;
+
+data Nurnberg.TbTrajeto&ANO.&MES.&DIA.;
+set TbTrajeto;
+	format DtReferencia DDMMYY10.;
+	informat DtReferencia DDMMYY10.;
+	length DtReferencia 8.;
+
+	DtReferencia = mdy(&MES., &DIA., &ANO.);
+run;

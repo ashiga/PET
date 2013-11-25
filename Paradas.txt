@@ -1,0 +1,19 @@
+
+/*Busca as paradas para determinada linha de ônibus*/
+data TbParadas;
+set TbStopTimes;
+where trip_id contains('917H');
+run;
+
+/*Cruza para obter as coordenadas e nome das paradas.*/
+proc sql;
+	create table TbParadas as 
+	select A.*,
+	B.stop_name,
+	B.stop_desc,
+	B.stop_lat,
+	B.stop_lon,
+	case when trip_id contains('-0') then 'TS_TP' else 'TP_TS' end as DsSentido format = $CHAR5.
+	from TbParadas as a left join TBSTOPS as b on A.stop_id = b.stop_id
+	order by trip_id, stop_sequence;
+quit;

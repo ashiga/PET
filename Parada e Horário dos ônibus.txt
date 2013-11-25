@@ -1,0 +1,67 @@
+/*Cruza base de Bilhetagem com localização com a base de paradas*/
+proc sql;
+	create table TbOnibusParada as 
+	select A.*,
+	B.stop_sequence,
+	B.stop_lat,
+	B.stop_lon
+	from TbTrajeto as a left join TbParadas as B on A.DsSentido = B.DsSentido;
+quit;
+
+/*Calcula a diferença entre as coordenadas*/
+data TbOnibusParada;
+set TbOnibusParada;
+	Diferenca_lat = stop_lat - nr_latitude_grau;
+	Diferenca_lon = stop_lon - nr_longitude_grau;
+
+	SomaDiferenca = abs(Diferenca_lat) + abs(Diferenca_lat);
+run;
+
+proc sql;
+	create table TbMinimo as 
+	select nr_identificador,
+	dt_avl,
+	min(SomaDiferenca) as SomaDiferenca
+	from TbOnibusParada
+	group by nr_identificador,
+	dt_avl
+	order by nr_identificador,
+	dt_avl;
+quit;
+
+proc sql;
+	create table TbOnibusParada as 
+	select B.*
+	from TbMinimo AS A inner join TbOnibusParada as B on A.nr_identificador = B.nr_identificador and A.dt_avl = B.dt_avl and A.SomaDiferenca = B.SomaDiferenca
+	order by B.nr_identificador,
+	B.dt_avl;
+quit;
+
+/*No caso de empate, elege a minima parada*/
+proc sql;
+	create table TbMinimo as 
+	select nr_identificador,
+	dt_avl,
+	DsSentido,
+	min(stop_sequence) as stop_sequence
+	from TbOnibusParada
+	group by nr_identificador,
+	dt_avl,
+	DsSentido
+	order by nr_identificador,
+	dt_avl,
+	DsSentido;
+quit;
+
+proc sql;
+	create table TbOnibusParada as 
+	select B.*
+	from TbMinimo AS A inner join TbOnibusParada as B on A.nr_identificador = B.nr_identificador and A.dt_avl = B.dt_avl and A.stop_sequence = B.stop_sequence
+	order by B.nr_identificador,
+	B.dt_avl;
+quit;
+
+/*Apaga tabelas temporárias*/
+proc datasets lib=work;
+	delete TbMinimo;
+run;

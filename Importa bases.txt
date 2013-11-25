@@ -1,0 +1,150 @@
+%LET TB_MO = /riscosbvf/rnurnberg/MO_13812.txt;
+%LET TB_AV = /riscosbvf/rnurnberg/AV_13812.txt;
+%LET TB_AL = /riscosbvf/rnurnberg/AL_13812.txt;
+%LET TB_BL = /riscosbvf/rnurnberg/B_13812.txt;
+
+
+DATA WORK.TbBilhetagem;
+    LENGTH
+        DtPassagem         8
+        NuHash             8
+        DsSentido        $ 5
+        NuPrefixo          8
+        NuValidador        8
+        CdLinha          $ 6 ;
+    FORMAT
+        DtPassagem       DATETIME18.
+        NuHash           BEST10.
+        DsSentido        $CHAR5.
+        NuPrefixo        BEST6.
+        NuValidador      BEST10.
+        CdLinha          $CHAR6. ;
+    INFORMAT
+        DtPassagem       DATETIME18.
+        NuHash           BEST10.
+        DsSentido        $CHAR5.
+        NuPrefixo        BEST6.
+        NuValidador      BEST10.
+        CdLinha          $CHAR6. ;
+    INFILE "&TB_BL"
+        LRECL=32767
+        ENCODING="UTF-8"
+		FIRSTOBS=1 
+        DLM='|'
+        MISSOVER
+        DSD ;
+    INPUT
+        DtPassagem       : ?? ANYDTDTM19.
+        NuHash           : ?? BEST10.
+        DsSentido        : $CHAR5.
+        NuPrefixo        : ?? BEST6.
+        NuValidador      : ?? BEST10.
+        CdLinha          : $CHAR6. ;
+RUN;
+
+DATA WORK.TbAL;
+    LENGTH
+        DsLinha          $ 4
+        CdTipo             8
+        CdLinha            8
+        DsSentido          8 ;
+    FORMAT
+        DsLinha          $CHAR4.
+        CdTipo           BEST2.
+        CdLinha          BEST5.
+        DsSentido        BEST1. ;
+    INFORMAT
+        DsLinha          $CHAR4.
+        CdTipo           BEST2.
+        CdLinha          BEST5.
+        DsSentido        BEST1. ;
+    INFILE "&TB_AL"
+        LRECL=32767
+        ENCODING="UTF-8"
+		FIRSTOBS=1 
+        DLM=','
+        MISSOVER
+        DSD ;
+    INPUT
+        DsLinha          : $CHAR4.
+        CdTipo           : ?? BEST2.
+        CdLinha          : ?? BEST5.
+        DsSentido        : ?? BEST1. ;
+RUN;
+
+
+DATA WORK.TbAV;
+    LENGTH
+        nr_identificador   8
+        veiculo            8 ;
+    FORMAT
+        nr_identificador BEST5.
+        veiculo          BEST5. ;
+    INFORMAT
+        nr_identificador BEST5.
+        veiculo          BEST5. ;
+    INFILE "&TB_AV"
+        LRECL=32767
+        ENCODING="UTF-8"
+		FIRSTOBS=1 
+        DLM=','
+        MISSOVER
+        DSD ;
+    INPUT
+        nr_identificador : ?? BEST5.
+        veiculo          : ?? BEST5. ;
+RUN;
+
+
+DATA WORK.TbMO;
+    LENGTH
+        dt_movto           8
+        dt_avl             8
+        cd_linha           8
+        nr_latitude_grau   8
+        nr_longitude_grau  8
+        nr_identificador   8 ;
+    FORMAT
+        dt_movto           DATETIME18.
+        dt_avl             DATETIME18.
+        cd_linha           BEST5.
+        nr_latitude_grau   BEST10.
+        nr_longitude_grau  BEST11.
+        nr_identificador   BEST5. ;
+    INFORMAT
+        dt_movto           DATETIME18.
+        dt_avl             DATETIME18.
+        cd_linha           BEST5.
+        nr_latitude_grau   BEST10.
+        nr_longitude_grau  BEST11.
+        nr_identificador   BEST5. ;
+    INFILE "&TB_MO"
+        LRECL=32767
+        ENCODING="UTF-8"
+		FIRSTOBS=1 
+        DLM=','
+        MISSOVER
+        DSD ;
+    INPUT
+        dt_movto           : ?? ANYDTDTM23.
+        dt_avl             : ?? ANYDTDTM23.
+        cd_linha           : ?? BEST5.
+        nr_latitude_grau   : ?? COMMA10.
+        nr_longitude_grau  : ?? COMMA11.
+        nr_identificador   : ?? BEST5. ;
+RUN;
+
+data TbMO;
+set TbMO;
+where dt_movto NE .;
+run;
+
+proc sort data=TbMO;
+by nr_identificador cd_linha dt_movto dt_avl nr_latitude_grau nr_longitude_grau;
+run;
+
+/*Concatena código para comparações*/
+data work.TbAl;
+set TbAl;
+	DsLinha2 = CAT(DsLinha, put(CdTipo, Z2.));
+run;

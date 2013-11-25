@@ -1,0 +1,141 @@
+/*Seleciona apenas a linha de interesse dos dados de bilhetagem*/
+data TbLinha917H (rename=(CdLinha=DsLinha));
+set TbBilhetagem;
+where CdLinha contains('917H');
+run;
+
+/*Elimina bilhetes que tenham mais que 6 passagem no dia na mesma linha*/
+proc sql;
+	create table TbHashInvalido as 
+	select NuHash,
+	NuValidador,
+	count(distinct DtPassagem) as QTDE
+	from TbLinha917H
+	group by NuHash,
+	NuValidador;
+quit;
+
+data TbHashInvalido;
+set TbHashInvalido;
+where QTDE > 4;
+run;
+
+proc sql;
+	create table TbLinha917H as 
+	select A.*,
+	case when B.NuHash is not null then 'S' else 'N' end as FlHashCobrador
+	from TbLinha917H as A left join TbHashInvalido as B on A.NuHash = B.NuHash;
+quit;
+
+/*Cruza prefixo do ônibus para obter o identificador, que será usado para obter as 
+posições de GPS dele.*/
+proc sql;
+	create table TbLinha917H as 
+	select 	A.DtPassagem,
+			A.NuHash,
+			A.DsSentido,
+			A.NuPrefixo,
+			A.NuValidador,
+			A.DsLinha,
+			A.FlHashCobrador,
+			B.nr_identificador,
+			max(case when C.DsSentido = 1 then C.CdLinha end) as CdLinhaTP,
+			max(case when C.DsSentido = 2 then C.CdLinha end) as CdLinhaTS
+	from TbLinha917H as A left join TbAV as B on A.NuPrefixo = B.veiculo
+						  left join TbAL as C on A.DsLinha = C.DsLinha2
+	group by A.DtPassagem,
+			A.NuHash,
+			A.DsSentido,
+			A.NuPrefixo,
+			A.NuValidador,
+			A.DsLinha,
+			A.FlHashCobrador,
+			B.nr_identificador;
+quit;
+
+/*Consolida o número dos identificadores desta linha*/
+proc sql;
+	create table TbIdentificadores as 
+	select nr_identificador,
+	max(CdLinhaTP) as CdLinhaTP,
+	max(CdLinhaTS) as CdLinhaTS
+	from TbLinha917H
+	group by nr_identificador
+	order by nr_identificador;
+quit;
+
+
+/*Busca o trajeto efetuado pelos ônibus identificados*/
+data TbTrajeto;
+merge TbIdentificadores (in=a keep=nr_identificador CdLinhaTP CdLinhaTS)
+	  TbMO (in=b drop=dt_movto);
+by nr_identificador;
+if a;
+run;
+
+/*Remove ocorrência de linhas incorretas*/
+data TbTrajeto;
+set TbTrajeto;
+where cd_linha = CdLinhaTP OR cd_linha = CdLinhaTS;
+	format DsSentido $CHAR5.;
+	informat DsSentido $CHAR5.;
+	length DsSentido $5.;
+
+	if cd_linha = CdLinhaTP then DsSentido = 'TS_TP';
+	else DsSentido = 'TP_TS';
+run;
+
+/*Remove duplicações caso existam*/
+proc sort data=TbTrajeto nodupkey;
+by nr_identificador dt_avl;
+run;
+
+/*Cria index para cruzamento com a própria base*/
+data TbTrajeto;
+set TbTrajeto;
+	INDEX = _N_;
+run;
+
+/*Cria uma data fim para cruzamento com os dados de bilhetagem*/
+proc sql;
+	create table TbTrajeto as 
+	select A.*,
+	B.dt_avl as DtFim
+	from TbTrajeto AS A left join TbTrajeto as B on A.nr_identificador = B.nr_identificador and
+													B.Index = (A.Index + 1)
+	order by nr_identificador, dt_avl;
+quit;
+
+/*Corrige datas*/
+data TbTrajeto;
+set TbTrajeto;
+	if DtFim > dt_avl + 600 then DtFim = dt_avl + 60;
+
+	if DtFim = . then DtFim = dt_avl + 60;
+run;
+
+proc sort data=TbTrajeto nodupkey;
+by nr_identificador dt_avl nr_latitude_grau nr_longitude_grau;
+run;
+
+/*Cruzamento com os dados de bilhetagem*/
+proc sql;
+	create table TbBilheteTrajeto as 
+	select A.*,
+	B.dt_avl,
+	B.DtFim,
+	B.nr_latitude_grau,
+	B.nr_longitude_grau
+	from TBLINHA917H AS A left join TbTrajeto as B on 	A.nr_identificador = B.nr_identificador and
+														A.DtPassagem > B.dt_avl and 
+														A.DtPassagem <= B.DtFim
+	order by NuHash, DtPassagem;
+quit;
+
+
+/*Apaga tabelas temporárias*/
+proc datasets lib=work;
+	delete TBLINHA917H TbIdentificadores TbHashInvalido;
+run;
+
+

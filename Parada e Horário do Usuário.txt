@@ -1,0 +1,64 @@
+/*Cruza base de Bilhetagem com localização com a base de paradas*/
+proc sql;
+	create table TbUsuarioParada as 
+	select A.*,
+	B.stop_sequence,
+	B.stop_lat,
+	B.stop_lon
+	from TbBilheteTrajeto as a left join TbParadas as B on A.DsSentido = B.DsSentido;
+quit;
+
+/*Calcula a diferença entre as coordenadas*/
+data TbUsuarioParada;
+set TbUsuarioParada;
+	Diferenca_lat = stop_lat - nr_latitude_grau;
+	Diferenca_lon = stop_lon - nr_longitude_grau;
+
+	SomaDiferenca = abs(Diferenca_lat) + abs(Diferenca_lat);
+run;
+
+proc sql;
+	create table TbMinimo as 
+	select NuHash,
+	DtPassagem,
+	min(SomaDiferenca) as SomaDiferenca
+	from TbUsuarioParada
+	group by NuHash,
+	DtPassagem
+	order by NuHash,
+	DtPassagem;
+quit;
+
+proc sql;
+	create table TbUsuarioParada as 
+	select B.*
+	from TbMinimo AS A inner join TbUsuarioParada as B on A.NuHash = B.NuHash and A.DtPassagem = B.DtPassagem and A.SomaDiferenca = B.SomaDiferenca
+	order by B.NuHash,
+	B.DtPassagem;
+quit;
+
+/*No caso de empate, elege a minima parada*/
+proc sql;
+	create table TbMinimo as 
+	select NuHash,
+	DtPassagem,
+	min(stop_sequence) as stop_sequence
+	from TbUsuarioParada
+	group by NuHash,
+	DtPassagem
+	order by NuHash,
+	DtPassagem;
+quit;
+
+proc sql;
+	create table TbUsuarioParada as 
+	select B.*
+	from TbMinimo AS A inner join TbUsuarioParada as B on A.NuHash = B.NuHash and A.DtPassagem = B.DtPassagem and A.stop_sequence = B.stop_sequence
+	order by B.NuHash,
+	B.DtPassagem;
+quit;
+
+/*Apaga tabelas temporárias*/
+proc datasets lib=work;
+	delete TbMinimo;
+run;
